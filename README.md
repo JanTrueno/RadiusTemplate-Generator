@@ -1,129 +1,52 @@
 # RadiusTemplate Generator
 
-A small Windows console program that turns a radius into a **radius template (radius gauge) as a DXF file**, ready for laser cutting:
+Windows console tool that turns a radius into a **radius template (radius gauge) as a DXF file** for laser cutting.
 
-- a convex radius arc at the bottom (the measuring edge);
-- two straight "ears" of 25 mm, perpendicular to the arc;
-- a flat top edge;
-- a hole in the top-right corner (inner contour);
-- engraving text `R<radius>` as text outlines.
+![R100 template](docs/preview_R100.svg)
 
-One DXF file is written per radius: `RadiusTemplate_R<radius>.dxf`.
+*`RadiusMal.exe 100` — black: cut lines (outer contour and corner hole), yellow: engraving.*
 
-The engraving uses the outlines of the Arial font (via GDI+), so the program runs on Windows. Everything else is plain geometry.
+The template has a convex radius arc, two 25 mm ears, a flat top, a corner hole and the engraving `R<radius>`. One file is written per radius: `RadiusTemplate_R<radius>.dxf`.
 
-## Quick start
+## Usage
 
-Download `RadiusMal.exe` from the [Releases](../../releases) page (self-contained, no .NET install needed), then:
+Download `RadiusMal.exe` from [Releases](../../releases) (self-contained, no .NET needed), then:
 
 ```text
 RadiusMal.exe 317.5
-```
-
-or double-click it, type the radius and press Enter.
-
-Several radii at once:
-
-```text
 RadiusMal.exe 25 50 100 200 300 500 -o C:\Out
+RadiusMal.exe 150 --angle 45 --text-height 10
 ```
 
-A decimal comma works as input too: `RadiusMal 317,5`.
+Without arguments it asks for a radius. A decimal comma works too (`317,5`). See [Examples](Examples) for sample output.
 
-## Arc angle
+| Option | Meaning |
+|---|---|
+| `-o, --out <folder>` | Output folder (default: current) |
+| `-a, --angle <deg>` | Force arc angle. Default: R ≤ 100 → 90°, ≤ 200 → 60°, ≤ 300 → 45°, > 300 → 30° |
+| `-e, --ear <mm>` | Ear length (default 25) |
+| `--hole-dia <mm>` | Hole diameter (default 10) |
+| `--hole-inset <mm>` | Hole centre to top/side edge (default 15) |
+| `--text-height <mm>` | Engraving height (default 12.7) |
+| `--text <text>` | Custom engraving text |
+| `--no-text`, `--no-hole`, `--both-holes` | Omit text / hole, or hole in both corners |
+| `--comma` | Decimal comma in the engraving (R317,5) |
+| `--pause` | Wait for Enter when done |
 
-The arc angle is chosen automatically:
+Below R100 the ear, hole and text scale with `R / 100` so they stay inside the template.
 
-| Radius        | Arc  |
-|---------------|------|
-| R ≤ 100 mm    | 90°  |
-| R ≤ 200 mm    | 60°  |
-| R ≤ 300 mm    | 45°  |
-| R > 300 mm    | 30°  |
+## DXF output
 
-Override it with `--angle`, e.g. `RadiusMal 317.5 --angle 60`.
+R12 (AC1009), millimetres, accepted by AutoCAD and Inventor. The outer contour is 3 lines and one true arc; the engraving is short line segments (Arial outlines).
 
-## Fixed dimensions and small radii
+| Layer | Content |
+|---|---|
+| `DECOUPE_EXTERNE` | outer contour |
+| `DECOUPE_INTERNE` | corner hole |
+| `GRAVURE` | engraving text |
 
-Above R100 the default dimensions are:
+The French layer names are kept because laser software maps operations to them.
 
-| Feature          | Size |
-|------------------|------|
-| Ear length       | 25 mm |
-| Hole             | Ø10 mm, 15 mm from top edge and side edge |
-| Engraving text   | 12.7 mm cap height |
+## Build
 
-Below R100 these dimensions scale with `R / 100` so the ear, hole and text always stay inside the template. All of them can be overridden with the options below.
-
-The engraving text is automatically shifted or reduced if it would otherwise touch the hole (for example at R50).
-
-## Options
-
-```text
--o, --out <folder>       Output folder (default: current folder)
--a, --angle <degrees>    Force the arc angle
--e, --ear <mm>           Ear length (default 25)
-    --hole-dia <mm>      Hole diameter (default 10)
-    --hole-inset <mm>    Distance from hole centre to top/side edge (default 15)
-    --text-height <mm>   Engraving text height (default 12.7)
-    --text <text>        Custom engraving text (default "R<radius>")
-    --no-text            No engraving text
-    --no-hole            No hole
-    --both-holes         Hole in both top corners
-    --comma              Decimal comma in the engraving text (R317,5)
-    --pause              Wait for Enter when finished
--h, --help               Help
-```
-
-## DXF layers
-
-| Layer             | Content                      | Colour |
-|-------------------|------------------------------|--------|
-| `DECOUPE_EXTERNE` | outer contour (cut outside)  | white  |
-| `DECOUPE_INTERNE` | corner hole (cut inside)     | white  |
-| `GRAVURE`         | engraving text               | yellow |
-
-The (French) layer names are kept because laser software maps operations to them.
-
-The file is DXF R12 (AC1009) in millimetres, with a complete header, tables and blocks so that strict readers such as AutoCAD and Inventor accept it. Header variables `$INSUNITS = 4` and `$MEASUREMENT = 1` mark it as millimetres/metric. The outer contour is three `LINE` entities and one true `ARC` (not a polyline approximation); the engraving is made of short `LINE` segments.
-
-## How the shape is built
-
-A circular arc with radius `R` over the chosen angle `θ`, symmetric at the bottom. The ends of the arc are:
-
-```text
-P± = (±R·sin(θ/2), −R·cos(θ/2))
-```
-
-From each end an ear of length `E` runs radially inward. The top edge is the straight line between the two inner ear ends. The hole sits on the bisector of the top-right corner at the configured distance from the top and side edge. The engraving text is centred horizontally with its centre on the chord through the arc ends.
-
-## Building from source
-
-Requires the .NET 9 SDK.
-
-```powershell
-dotnet build -c Release
-dotnet run -c Release -- 317.5 --angle 60
-```
-
-Or create the standalone Windows exe:
-
-```powershell
-.\build.ps1
-```
-
-This produces `dist\RadiusMal.exe`: one self-contained file (~10.5 MB, trimmed) that needs no .NET installation.
-
-## Files
-
-```text
-RadiusMal.csproj     project
-Program.cs           command line / console
-RadiusTemplate.cs    template geometry
-TextEngraver.cs      text -> engraving lines (Arial outlines)
-DxfWriter.cs         DXF R12 writer
-skeleton_r12.dxf     R12 header/tables/blocks (embedded resource)
-RadiusMal.ico        application icon
-build.ps1            publish script
-Examples/            sample DXF files
-```
+Requires the .NET 9 SDK. `dotnet run -c Release -- 317.5`, or `.\build.ps1` for the standalone `dist\RadiusMal.exe`.
